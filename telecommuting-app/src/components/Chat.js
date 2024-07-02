@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { TextField, Button, Container, List, ListItem, ListItemText } from '@mui/material';
+import { TextField, Button, Container, List, ListItem, ListItemText, Typography } from '@mui/material';
 import { collection, addDoc, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { getAuth } from 'firebase/auth';
@@ -9,6 +9,8 @@ const Chat = ({ roomId }) => {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
   const [showVideo, setShowVideo] = useState(false);
+  const auth = getAuth();
+  const user = auth.currentUser;
 
   useEffect(() => {
     if (!roomId) return;
@@ -39,6 +41,7 @@ const Chat = ({ roomId }) => {
 
   return (
     <Container>
+      <Typography variant="h4">Chat Room</Typography>
       <List>
         {messages.map((msg) => (
           <ListItem key={msg.id}>
@@ -56,10 +59,15 @@ const Chat = ({ roomId }) => {
       <Button variant="contained" color="primary" onClick={sendMessage}>
         Send
       </Button>
-      <Button variant="contained" color="secondary" onClick={() => setShowVideo(!showVideo)}>
-        {showVideo ? 'Close Video Chat' : 'Start Video Chat'}
+      <Button
+        variant="contained"
+        color="secondary"
+        onClick={() => setShowVideo(!showVideo)}
+        style={{ marginLeft: '10px' }}
+      >
+        {showVideo ? 'End Video Call' : 'Start Video Call'}
       </Button>
-      {showVideo && <VideoChat roomId={roomId} />}
+      {showVideo && <VideoChat roomId={roomId} user={user} />}
     </Container>
   );
 };

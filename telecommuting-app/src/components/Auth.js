@@ -9,6 +9,8 @@ const Auth = () => {
   const [password, setPassword] = useState('');
   const [isRegister, setIsRegister] = useState(false);
   const [role, setRole] = useState('');
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const auth = getAuth();
 
@@ -21,7 +23,9 @@ const Auth = () => {
         await signInWithEmailAndPassword(auth, email, password);
       }
     } catch (error) {
-      console.error("Authentication Error:", error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -56,8 +60,9 @@ const Auth = () => {
           </Select>
         </FormControl>
       )}
-      <Button variant="contained" color="primary" onClick={handleAuth}>
-        {isRegister ? "Register" : "Login"}
+      {error && <Typography color="error">{error}</Typography>}
+      <Button variant="contained" color="primary" onClick={handleAuth} disabled={loading}>
+        {loading ? 'Processing...' : (isRegister ? "Register" : "Login")}
       </Button>
       <Button onClick={() => setIsRegister(!isRegister)}>
         {isRegister ? "Already have an account? Login" : "Don't have an account? Register"}
