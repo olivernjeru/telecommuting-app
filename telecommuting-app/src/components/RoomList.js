@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, onSnapshot, doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { firestoredb } from '../firebase';
 import { getAuth } from 'firebase/auth';
 import { TextField, Button, List, ListItem, ListItemText, Container, Typography } from '@mui/material';
 
@@ -14,7 +14,7 @@ const RoomList = ({ selectRoom }) => {
 
   useEffect(() => {
     const fetchUserRole = async () => {
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const userDoc = await getDoc(doc(firestoredb, 'users', user.uid));
       if (userDoc.exists()) {
         setRole(userDoc.data().role);
       }
@@ -22,7 +22,7 @@ const RoomList = ({ selectRoom }) => {
 
     fetchUserRole();
 
-    const unsubscribe = onSnapshot(collection(db, 'rooms'), (snapshot) => {
+    const unsubscribe = onSnapshot(collection(firestoredb, 'rooms'), (snapshot) => {
       const roomsData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setRooms(roomsData.filter(room => room.participants.includes(user.email)));
     });
@@ -31,15 +31,15 @@ const RoomList = ({ selectRoom }) => {
   }, [user]);
 
   const createRoom = async () => {
-    const userDoc = await getDoc(doc(db, 'users', user.uid));
-    const newUserDoc = await getDoc(doc(db, 'users', newRoomEmail));
+    const userDoc = await getDoc(doc(firestoredb, 'users', user.uid));
+    const newUserDoc = await getDoc(doc(firestoredb, 'users', newRoomEmail));
 
     if (userDoc.exists() && newUserDoc.exists()) {
       const userRole = userDoc.data().role;
       const newUserRole = newUserDoc.data().role;
 
       if ((userRole === 'doctor' && newUserRole === 'patient') || (userRole === 'patient' && newUserRole === 'doctor')) {
-        await addDoc(collection(db, 'rooms'), {
+        await addDoc(collection(firestoredb, 'rooms'), {
           participants: [user.email, newRoomEmail],
         });
 

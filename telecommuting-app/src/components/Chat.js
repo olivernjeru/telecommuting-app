@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TextField, Button, Container, List, ListItem, ListItemText } from '@mui/material';
 import { collection, addDoc, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebase';
+import { firestoredb } from '../firebase';
 import { getAuth } from 'firebase/auth';
 import VideoChat from './VideoChat';
 
@@ -13,7 +13,7 @@ const Chat = ({ roomId }) => {
   useEffect(() => {
     if (!roomId) return;
 
-    const q = query(collection(db, `rooms/${roomId}/messages`), orderBy('timestamp', 'asc'));
+    const q = query(collection(firestoredb, `rooms/${roomId}/messages`), orderBy('timestamp', 'asc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const msgs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setMessages(msgs);
@@ -28,13 +28,13 @@ const Chat = ({ roomId }) => {
     const auth = getAuth();
     const user = auth.currentUser;
 
-    await addDoc(collection(db, `rooms/${roomId}/messages`), {
+    setMessage('');
+
+    await addDoc(collection(firestoredb, `rooms/${roomId}/messages`), {
       text: message,
       user: user.email,
       timestamp: new Date(),
     });
-
-    setMessage('');
   };
 
   return (
