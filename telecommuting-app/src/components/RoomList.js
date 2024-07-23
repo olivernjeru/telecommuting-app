@@ -38,8 +38,7 @@ const RoomList = ({ selectRoom }) => {
       const unsubscribe = onSnapshot(collection(db, 'rooms'), (snapshot) => {
         const roomsData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
         setRooms(roomsData.filter(room => room.participants.includes(user.email)));
-      });
-
+      });  
       return () => unsubscribe();
     }
   }, [user]);

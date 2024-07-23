@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { TextField, Button, Container, Typography, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { firestoredb } from '../firebase';
 
 const Auth = () => {
   const [email, setEmail] = useState('');
@@ -18,7 +18,7 @@ const Auth = () => {
     try {
       if (isRegister) {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        await setDoc(doc(db, 'users', userCredential.user.uid), { email, role });
+        await setDoc(doc(firestoredb, 'users', userCredential.user.uid), { email, role });
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
