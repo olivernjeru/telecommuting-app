@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, onSnapshot, doc, getDoc } from 'firebase/firestore';
-import { firestoredb } from '../firebase';
+import { collection, addDoc, onSnapshot, doc, getDoc, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../firebase';
 import { getAuth } from 'firebase/auth';
 import { TextField, Button, List, ListItem, ListItemText, Container, Typography } from '@mui/material';
 
@@ -14,41 +14,79 @@ const RoomList = ({ selectRoom }) => {
 
   useEffect(() => {
     const fetchUserRole = async () => {
-      const userDoc = await getDoc(doc(firestoredb, 'users', user.uid));
-      if (userDoc.exists()) {
-        setRole(userDoc.data().role);
+      if (user) {
+        const userDocRef = doc(db, 'users', user.uid);
+        console.log(`Fetching current user document from path: ${userDocRef.path}`);
+        try {
+          const userDoc = await getDoc(userDocRef);
+          if (userDoc.exists()) {
+            setRole(userDoc.data().role);
+          } else {
+            console.error('Current user role not found.');
+          }
+        } catch (error) {
+          console.error('Error fetching current user role:', error);
+        }
+      } else {
+        console.error('No authenticated user found.');
       }
     };
 
     fetchUserRole();
 
-    const unsubscribe = onSnapshot(collection(firestoredb, 'rooms'), (snapshot) => {
-      const roomsData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      setRooms(roomsData.filter(room => room.participants.includes(user.email)));
-    });
-
-    return () => unsubscribe();
+    if (user) {
+      const unsubscribe = onSnapshot(collection(db, 'rooms'), (snapshot) => {
+        const roomsData = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        setRooms(roomsData.filter(room => room.participants.includes(user.email)));
+      });  
+      return () => unsubscribe();
+    }
   }, [user]);
 
   const createRoom = async () => {
-    const userDoc = await getDoc(doc(firestoredb, 'users', user.uid));
-    const newUserDoc = await getDoc(doc(firestoredb, 'users', newRoomEmail));
+    try {
+      if (!user) {
+        console.error('No authenticated user found.');
+        alert('No authenticated user found.');
+        return;
+      }
 
-    if (userDoc.exists() && newUserDoc.exists()) {
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userDocRef);
+      const newUserEmailLower = newRoomEmail.toLowerCase().trim();
+
+      // Query to find user by email
+      const newUserQuery = query(collection(db, 'users'), where('email', '==', newUserEmailLower));
+      const newUserQuerySnapshot = await getDocs(newUserQuery);
+
+      if (!userDoc.exists()) {
+        console.error('Current user document not found.');
+        alert('Current user not found.');
+        return;
+      }
+
+      if (newUserQuerySnapshot.empty) {
+        console.error('New room participant document not found.');
+        alert('New participant user not found.');
+        return;
+      }
+
+      const newUserDoc = newUserQuerySnapshot.docs[0];
       const userRole = userDoc.data().role;
       const newUserRole = newUserDoc.data().role;
 
       if ((userRole === 'doctor' && newUserRole === 'patient') || (userRole === 'patient' && newUserRole === 'doctor')) {
-        await addDoc(collection(firestoredb, 'rooms'), {
-          participants: [user.email, newRoomEmail],
+        await addDoc(collection(db, 'rooms'), {
+          participants: [user.email, newUserEmailLower],
         });
 
         setNewRoomEmail('');
       } else {
         alert('Rooms can only be created between a doctor and a patient.');
       }
-    } else {
-      alert('User not found.');
+    } catch (error) {
+      console.error('Error creating room:', error);
+      alert('An error occurred while creating the room.');
     }
   };
 
