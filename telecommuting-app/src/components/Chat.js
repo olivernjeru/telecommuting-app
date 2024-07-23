@@ -30,13 +30,13 @@ const Chat = ({ roomId }) => {
     const auth = getAuth();
     const user = auth.currentUser;
 
+    setMessage('');
+
     await addDoc(collection(db, `rooms/${roomId}/messages`), {
       text: message,
       user: user.email,
       timestamp: new Date(),
     });
-
-    setMessage('');
   };
 
   return (
