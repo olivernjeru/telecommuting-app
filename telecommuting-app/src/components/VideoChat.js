@@ -1,118 +1,184 @@
-import React, { useEffect, useRef, useState } from 'react';
-import Peer from 'simple-peer';
+import React, { useRef, useEffect, useState } from 'react';
 import io from 'socket.io-client';
-import { Button, Grid, Typography } from '@mui/material';
+import { getAuth } from 'firebase/auth';
+import { Button, Container, Typography, Box, Grid, IconButton } from '@mui/material';
+import MicIcon from '@mui/icons-material/Mic';
+import MicOffIcon from '@mui/icons-material/MicOff';
+import VideocamIcon from '@mui/icons-material/Videocam';
+import VideocamOffIcon from '@mui/icons-material/VideocamOff';
 
-const VideoChat = ({ roomId, user }) => {
-  const [peer, setPeer] = useState(null);
-  const [stream, setStream] = useState(null);
-  const [receivingCall, setReceivingCall] = useState(false);
-  const [caller, setCaller] = useState("");
-  const [callerSignal, setCallerSignal] = useState();
-  const [callAccepted, setCallAccepted] = useState(false);
-
-  const userVideo = useRef();
-  const partnerVideo = useRef();
-  const socketRef = useRef();
+const VideoChat = ({ roomId }) => {
+  const [socket, setSocket] = useState(null);
+  const [isAudioMuted, setIsAudioMuted] = useState(false);
+  const [isVideoOff, setIsVideoOff] = useState(false);
+  const localVideoRef = useRef();
+  const remoteVideoRef = useRef();
+  const peerConnection = useRef();
+  const localStream = useRef();
+  const auth = getAuth();
+  const user = auth.currentUser;
 
   useEffect(() => {
-    socketRef.current = io.connect("http://localhost:3001");
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
-      setStream(stream);
-      if (userVideo.current) {
-        userVideo.current.srcObject = stream;
-      }
-    });
+    const s = io('http://localhost:3001');
+    setSocket(s);
 
-    socketRef.current.emit("join-room", roomId, user.uid);
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then((stream) => {
+      localStream.current = stream;
+      localVideoRef.current.srcObject = stream;
+      peerConnection.current = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+        ],
+      });
 
-    socketRef.current.on("user-connected", userId => {
-      callUser(userId);
-    });
+      stream.getTracks().forEach(track => peerConnection.current.addTrack(track, stream));
 
-    socketRef.current.on("signal", data => {
-      if (!callAccepted) {
-        setReceivingCall(true);
-        setCaller(data.from);
-        setCallerSignal(data.signal);
-      }
+      peerConnection.current.onicecandidate = (event) => {
+        if (event.candidate) {
+          s.emit('signal', { roomId, candidate: event.candidate });
+        }
+      };
+
+      peerConnection.current.ontrack = (event) => {
+        remoteVideoRef.current.srcObject = event.streams[0];
+      };
+
+      s.on('signal', async (data) => {
+        if (data.candidate) {
+          await peerConnection.current.addIceCandidate(new RTCIceCandidate(data.candidate));
+        }
+
+        if (data.offer) {
+          await peerConnection.current.setRemoteDescription(new RTCSessionDescription(data.offer));
+          const answer = await peerConnection.current.createAnswer();
+          await peerConnection.current.setLocalDescription(answer);
+          s.emit('signal', { roomId, answer });
+        }
+
+        if (data.answer) {
+          await peerConnection.current.setRemoteDescription(new RTCSessionDescription(data.answer));
+        }
+      });
+
+      s.on('user-connected', async (userId) => {
+        const offer = await peerConnection.current.createOffer();
+        await peerConnection.current.setLocalDescription(offer);
+        s.emit('signal', { roomId, offer });
+      });
+
+      s.on('user-disconnected', () => {
+        remoteVideoRef.current.srcObject = null;
+      });
+
+      s.emit('join-room', roomId);
     });
 
     return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+      if (peerConnection.current) {
+        peerConnection.current.close();
       }
-      if (socketRef.current) {
-        socketRef.current.disconnect();
+      if (socket) {
+        socket.disconnect();
+      }
+      if (localStream.current) {
+        localStream.current.getTracks().forEach(track => track.stop());
       }
     };
-  }, []);
+  }, [roomId]);
 
-  const callUser = (userId) => {
-    const peer = new Peer({
-      initiator: true,
-      trickle: false,
-      stream: stream,
-    });
-
-    peer.on("signal", data => {
-      socketRef.current.emit("signal", { roomId, to: userId, from: user.uid, signal: data });
-    });
-
-    peer.on("stream", stream => {
-      if (partnerVideo.current) {
-        partnerVideo.current.srcObject = stream;
-      }
-    });
-
-    socketRef.current.on("signal", data => {
-      peer.signal(data.signal);
-    });
-
-    setPeer(peer);
+  const toggleAudio = () => {
+    if (localStream.current) {
+      localStream.current.getAudioTracks()[0].enabled = isAudioMuted;
+      setIsAudioMuted(!isAudioMuted);
+    }
   };
 
-  const acceptCall = () => {
-    setCallAccepted(true);
-    const peer = new Peer({
-      initiator: false,
-      trickle: false,
-      stream: stream,
-    });
-
-    peer.on("signal", data => {
-      socketRef.current.emit("signal", { roomId, to: caller, from: user.uid, signal: data });
-    });
-
-    peer.on("stream", stream => {
-      partnerVideo.current.srcObject = stream;
-    });
-
-    peer.signal(callerSignal);
-    setPeer(peer);
+  const toggleVideo = () => {
+    if (localStream.current) {
+      localStream.current.getVideoTracks()[0].enabled = isVideoOff;
+      setIsVideoOff(!isVideoOff);
+    }
   };
 
   return (
-    <Grid container spacing={2}>
-      <Grid item xs={12}>
-        <Typography variant="h5">Video Chat</Typography>
+    <Container maxWidth="lg">
+      <Typography variant="h4" gutterBottom align="center" sx={{ mt: 4, mb: 4 }}>
+        Video Chat
+      </Typography>
+      <Grid container spacing={2} justifyContent="center">
+        <Grid item xs={12} md={6}>
+          <Box sx={{ position: 'relative', width: '100%', paddingTop: '56.25%' }}>
+            <video
+              ref={localVideoRef}
+              autoPlay
+              muted
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                borderRadius: '8px',
+              }}
+            />
+            <Typography
+              variant="subtitle1"
+              sx={{
+                position: 'absolute',
+                bottom: 10,
+                left: 10,
+                color: 'white',
+                backgroundColor: 'rgba(0,0,0,0.5)',
+                padding: '2px 8px',
+                borderRadius: '4px',
+              }}
+            >
+              You
+            </Typography>
+          </Box>
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <Box sx={{ position: 'relative', width: '100%', paddingTop: '56.25%' }}>
+            <video
+              ref={remoteVideoRef}
+              autoPlay
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                borderRadius: '8px',
+              }}
+            />
+            <Typography
+              variant="subtitle1"
+              sx={{
+                position: 'absolute',
+                bottom: 10,
+                left: 10,
+                color: 'white',
+                backgroundColor: 'rgba(0,0,0,0.5)',
+                padding: '2px 8px',
+                borderRadius: '4px',
+              }}
+            >
+              Remote User
+            </Typography>
+          </Box>
+        </Grid>
       </Grid>
-      <Grid item xs={6}>
-        <video playsInline muted ref={userVideo} autoPlay style={{ width: "100%" }} />
-      </Grid>
-      <Grid item xs={6}>
-        {callAccepted && (
-          <video playsInline ref={partnerVideo} autoPlay style={{ width: "100%" }} />
-        )}
-      </Grid>
-      <Grid item xs={12}>
-        {receivingCall && !callAccepted && (
-          <Button variant="contained" color="primary" onClick={acceptCall}>
-            Accept Call
-          </Button>
-        )}
-      </Grid>
-    </Grid>
+      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+        <IconButton onClick={toggleAudio} color={isAudioMuted ? "default" : "primary"}>
+          {isAudioMuted ? <MicOffIcon /> : <MicIcon />}
+        </IconButton>
+        <IconButton onClick={toggleVideo} color={isVideoOff ? "default" : "primary"}>
+          {isVideoOff ? <VideocamOffIcon /> : <VideocamIcon />}
+        </IconButton>
+      </Box>
+    </Container>
   );
 };
 
