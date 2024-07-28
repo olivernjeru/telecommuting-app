@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from './firebase';
-import Auth from './components/Auth';
+import { Button, Container, Typography, Tabs, Tab } from '@mui/material';
 import Chat from './components/Chat';
 import RoomList from './components/RoomList';
 import UserProfile from './components/UserProfile';
@@ -10,35 +7,16 @@ import DoctorAppointments from './components/DoctorAppointments';
 import PatientPrescriptions from './components/PatientPrescriptions';
 import AppointmentScheduler from './components/AppointmentScheduler';
 import Prescription from './components/Prescription';
-import { Button, Container, Typography, Tabs, Tab } from '@mui/material';
+import { onAuthChange, logout } from './components/Auth';
 
-const App = () => {
-  const [user, setUser] = useState(null);
-  const [userRole, setUserRole] = useState(null);
-  const [selectedRoom, setSelectedRoom] = useState(null);
-  const [activeTab, setActiveTab] = useState(0);
-
-  useEffect(() => {
-    const auth = getAuth();
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      if (user) {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        if (userDoc.exists()) {
-          setUserRole(userDoc.data().role);
-        }
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
+const App = ({ user, userRole, selectedRoom, setSelectedRoom, activeTab, setActiveTab }) => {
   const handleSignOut = () => {
-    const auth = getAuth();
-    signOut(auth);
+    logout();
   };
 
-  if (!user) return <Auth />;
+  if (!user) {
+    return null; // Or you can return a loading spinner or placeholder
+  }
 
   return (
     <Container>

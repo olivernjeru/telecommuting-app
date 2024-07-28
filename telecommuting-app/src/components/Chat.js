@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { TextField, Button, Container, List, ListItem, ListItemText, Typography } from '@mui/material';
+import React, { useState, useEffect, useRef } from 'react';
+import { TextField, Button, Container, List, ListItem, ListItemText, Typography, Snackbar, Alert } from '@mui/material';
 import { collection, addDoc, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { getAuth } from 'firebase/auth';
@@ -9,8 +9,12 @@ const Chat = ({ roomId }) => {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
   const [showVideo, setShowVideo] = useState(false);
+  const [error, setError] = useState(''); // State for validation error
   const auth = getAuth();
   const user = auth.currentUser;
+
+  // Reference to the chat container div
+  const chatContainerRef = useRef(null);
 
   useEffect(() => {
     if (!roomId) return;
@@ -24,12 +28,20 @@ const Chat = ({ roomId }) => {
     return () => unsubscribe();
   }, [roomId]);
 
+  useEffect(() => {
+    // Scroll to bottom when messages change
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [messages]);
+
   const sendMessage = async () => {
-    if (!roomId || !message.trim()) return;
+    if (!roomId || !message.trim()) {
+      setError('Please type in a message to send');
+      return;
+    }
 
-    const auth = getAuth();
-    const user = auth.currentUser;
-
+    setError('');
     setMessage('');
 
     await addDoc(collection(db, `rooms/${roomId}/messages`), {
@@ -39,22 +51,40 @@ const Chat = ({ roomId }) => {
     });
   };
 
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault(); // Prevent new line in TextField
+      sendMessage();
+    }
+  };
+
+  const handleCloseSnackbar = () => {
+    setError('');
+  };
+
   return (
     <Container>
       <Typography variant="h4">Chat Room</Typography>
-      <List>
-        {messages.map((msg) => (
-          <ListItem key={msg.id}>
-            <ListItemText primary={msg.text} secondary={msg.user} />
-          </ListItem>
-        ))}
-      </List>
+      <div
+        ref={chatContainerRef}
+        style={{ maxHeight: '60vh', overflowY: 'auto', border: '1px solid #ccc', borderRadius: '4px', padding: '8px' }}
+      >
+        <List>
+          {messages.map((msg) => (
+            <ListItem key={msg.id}>
+              <ListItemText primary={msg.text} secondary={msg.user} />
+            </ListItem>
+          ))}
+        </List>
+      </div>
       <TextField
-        label="Message"
+        label="Type a message to send"
         value={message}
         onChange={(e) => setMessage(e.target.value)}
+        onKeyDown={handleKeyDown} // Handle Enter key
         fullWidth
         margin="normal"
+        multiline
       />
       <Button variant="contained" color="primary" onClick={sendMessage}>
         Send
@@ -68,6 +98,15 @@ const Chat = ({ roomId }) => {
         {showVideo ? 'End Video Call' : 'Start Video Call'}
       </Button>
       {showVideo && <VideoChat roomId={roomId} user={user} />}
+      <Snackbar
+        open={!!error}
+        autoHideDuration={6000}
+        onClose={handleCloseSnackbar}
+      >
+        <Alert onClose={handleCloseSnackbar} severity="error">
+          {error}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };
