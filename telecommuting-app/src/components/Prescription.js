@@ -10,10 +10,17 @@ const Prescription = () => {
   const [dosage, setDosage] = useState('');
   const [instructions, setInstructions] = useState('');
   const [openSnackbar, setOpenSnackbar] = useState(false);
+  const [error, setError] = useState('');
   const auth = getAuth();
   const user = auth.currentUser;
 
   const handlePrescribe = async () => {
+    if (!patientEmail.trim() || !medication.trim() || !dosage.trim() || !instructions.trim()) {
+      setError('All fields are required.');
+      return;
+    }
+
+    setError('');
     try {
       const prescriptionRef = await addDoc(collection(db, 'prescriptions'), {
         doctorEmail: user.email,
@@ -70,6 +77,8 @@ const Prescription = () => {
         onChange={(e) => setPatientEmail(e.target.value)}
         fullWidth
         margin="normal"
+        error={!!error && !patientEmail.trim()}
+        helperText={!!error && !patientEmail.trim() ? 'Patient\'s email is required.' : ''}
       />
       <TextField
         label="Medication"
@@ -77,6 +86,8 @@ const Prescription = () => {
         onChange={(e) => setMedication(e.target.value)}
         fullWidth
         margin="normal"
+        error={!!error && !medication.trim()}
+        helperText={!!error && !medication.trim() ? 'Medication is required.' : ''}
       />
       <TextField
         label="Dosage"
@@ -84,6 +95,8 @@ const Prescription = () => {
         onChange={(e) => setDosage(e.target.value)}
         fullWidth
         margin="normal"
+        error={!!error && !dosage.trim()}
+        helperText={!!error && !dosage.trim() ? 'Dosage is required.' : ''}
       />
       <TextField
         label="Instructions"
@@ -93,6 +106,8 @@ const Prescription = () => {
         margin="normal"
         multiline
         rows={4}
+        error={!!error && !instructions.trim()}
+        helperText={!!error && !instructions.trim() ? 'Instructions are required.' : ''}
       />
       <Button variant="contained" color="primary" onClick={handlePrescribe} sx={{ mt: 2 }}>
         Write Prescription
@@ -100,6 +115,11 @@ const Prescription = () => {
       <Snackbar open={openSnackbar} autoHideDuration={6000} onClose={handleCloseSnackbar}>
         <Alert onClose={handleCloseSnackbar} severity="success" sx={{ width: '100%' }}>
           Prescription sent successfully!
+        </Alert>
+      </Snackbar>
+      <Snackbar open={!!error} autoHideDuration={6000} onClose={() => setError('')}>
+        <Alert onClose={() => setError('')} severity="error" sx={{ width: '100%' }}>
+          {error}
         </Alert>
       </Snackbar>
     </Container>
